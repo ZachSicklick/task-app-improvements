@@ -6,6 +6,8 @@ import { SUPABASE_SECRET_KEY } from "../_shared/supabaseKeys.ts";
 const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") as string;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const STRIPE_PRICE_ID = Deno.env.get("STRIPE_PRICE_ID");
+const STRIPE_PRO_PRICE_ID = Deno.env.get("STRIPE_PRO_PRICE_ID");
 
 console.log("🌍 Stripe Webhook is running...");
 
@@ -45,10 +47,40 @@ Deno.serve(async (req) => {
         await supabase
           .from("profiles")
           .update({
-            subscription_plan: "premium",
+            // create-stripe-session puts the plan in the session metadata.
+            subscription_plan:
+              session.metadata?.plan === "pro" ? "pro" : "premium",
             updated_at: new Date().toISOString(),
           })
           .eq("stripe_customer_id", session.customer);
+        break;
+      }
+
+      // The customer switched plan (for example Premium to Pro) in the portal.
+      case "customer.subscription.updated": {
+        const subscription = event.data.object;
+        if (
+          subscription.status !== "active" &&
+          subscription.status !== "trialing"
+        ) {
+          break;
+        }
+        const priceId = subscription.items.data[0]?.price?.id;
+        const plan =
+          priceId && priceId === STRIPE_PRO_PRICE_ID
+            ? "pro"
+            : priceId && priceId === STRIPE_PRICE_ID
+            ? "premium"
+            : null;
+        if (plan) {
+          await supabase
+            .from("profiles")
+            .update({
+              subscription_plan: plan,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("stripe_customer_id", subscription.customer);
+        }
         break;
       }
 

@@ -38,6 +38,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/hooks/use-toast";
 import Image from "next/image";
 import { useDropzone } from "react-dropzone";
+import { TaskSteps } from "@/components/TaskSteps";
 
 function TaskForm() {
   const params = useSearchParams();
@@ -53,7 +54,7 @@ function TaskForm() {
     removeImage,
     error,
   } = useTaskManager(taskId);
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
 
@@ -256,6 +257,14 @@ function TaskForm() {
             </PopoverContent>
           </Popover>
         </div>
+        {user && (
+          <TaskSteps
+            taskId={task.task_id}
+            userId={user.user_id}
+            plan={user.subscription_plan}
+            accessToken={session?.access_token}
+          />
+        )}
         <div className="grid w-full items-center gap-1.5">
           <Label>Attach Image</Label>
           <div className="space-y-2">

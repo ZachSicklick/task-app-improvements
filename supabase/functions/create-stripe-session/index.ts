@@ -6,6 +6,8 @@ import { SUPABASE_SECRET_KEY } from "../_shared/supabaseKeys.ts";
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") as string;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const STRIPE_PRICE_ID = Deno.env.get("STRIPE_PRICE_ID");
+// Price of the Pro plan (the third plan). Premium uses STRIPE_PRICE_ID.
+const STRIPE_PRO_PRICE_ID = Deno.env.get("STRIPE_PRO_PRICE_ID");
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16",
@@ -23,6 +25,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Which plan the user wants to buy: "premium" (default) or "pro".
+    let requestedPlan = "premium";
+    try {
+      const body = await req.json();
+      if (body?.plan === "pro") requestedPlan = "pro";
+    } catch {
+      // No body: keep the default.
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
       auth: {
         autoRefreshToken: false,
@@ -71,8 +82,12 @@ Deno.serve(async (req) => {
 
     const originUrl = req.headers.get("origin") ?? "http://localhost:3000";
 
-    // Create Portal session if already subscribed
-    if (profile.subscription_plan === "premium") {
+    // Create Portal session if already subscribed (premium or pro): there the
+    // customer can switch plan, update the card or cancel.
+    if (
+      profile.subscription_plan === "premium" ||
+      profile.subscription_plan === "pro"
+    ) {
       const session = await stripe.billingPortal.sessions.create({
         customer: profile.stripe_customer_id,
         return_url: `${originUrl}/profile`,
@@ -83,15 +98,23 @@ Deno.serve(async (req) => {
     }
 
     // Create Checkout session for new subscribers
+    const priceId =
+      requestedPlan === "pro" ? STRIPE_PRO_PRICE_ID : STRIPE_PRICE_ID;
+    if (!priceId) {
+      throw new Error(`No Stripe price is set for the ${requestedPlan} plan`);
+    }
     const session = await stripe.checkout.sessions.create({
       customer: profile.stripe_customer_id,
       line_items: [
         {
-          price: STRIPE_PRICE_ID,
+          price: priceId,
           quantity: 1,
         },
       ],
       mode: "subscription",
+      // The webhook reads this to know which plan was bought.
+      metadata: { plan: requestedPlan },
+      subscription_data: { metadata: { plan: requestedPlan } },
       success_url: `${originUrl}/profile?success=true`,
       cancel_url: `${originUrl}/profile?canceled=true`,
     });

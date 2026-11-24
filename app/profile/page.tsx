@@ -38,10 +38,39 @@ export default function Profile() {
               Tasks Created: {user.tasks_created} / {user.tasks_limit}
             </p>
           </div>
-          <Button onClick={() => manageSubscription(session?.access_token)}>
-            <CreditCard className="mr-2 h-4 w-4" />
-            Manage Subscription
-          </Button>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            <li>Free: 100 tasks per month</li>
+            <li>Premium: 10,000 tasks per month</li>
+            <li>
+              Pro: 100,000 tasks per month, plus AI task breakdown (OpenAI
+              writes the steps of a task for you)
+            </li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            {user.subscription_plan === "free" ? (
+              <>
+                <Button
+                  onClick={() => manageSubscription(session?.access_token)}
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Upgrade to Premium
+                </Button>
+                <Button
+                  onClick={() =>
+                    manageSubscription(session?.access_token, "pro")
+                  }
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Upgrade to Pro
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => manageSubscription(session?.access_token)}>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Manage Subscription (change plan or cancel)
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
       <div className="flex justify-end">
